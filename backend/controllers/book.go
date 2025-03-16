@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -64,9 +65,18 @@ func SearchBook(c *gin.Context) {
 
 	var book models.Books
 	query := config.DB.Where("lib_id = ?", libId)
+	// if input.Title != "" {
+	// 	query = query.Where("title ILIKE ?", "%"+input.Title+"%")
+	// }
 	if input.Title != "" {
-		query = query.Where("title ILIKE ?", "%"+input.Title+"%")
+		if config.DB.Dialector.Name() == "sqlite" {
+			query = query.Where("title LIKE ?", "%"+input.Title+"%")
+		} else {
+			query = query.Where("title ILIKE ?", "%"+input.Title+"%")
+		}
 	}
+	
+	
 	if input.ISBN != 0 {
 		query = query.Where("isbn = ?", input.ISBN)
 	}
@@ -114,6 +124,7 @@ func SearchBook(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"book": bookDetails})
 }
+
 
 // UPDATING THE DETAILS OF A BOOK
 func UpdateBook(c *gin.Context) {
@@ -196,7 +207,14 @@ func UpdateBook(c *gin.Context) {
 
 // DELETING A BOOK
 func DeleteBook(c *gin.Context) {
-	isbn := c.Param("isbn")
+	isbnStr := c.Param("isbn")
+
+	var isbn uint
+	_, err := fmt.Sscanf(isbnStr, "%d", &isbn)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ISBN format"})
+		return
+	}
 
 	// GET ADMIN ID
 	email, _ := c.Get("email")

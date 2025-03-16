@@ -1,12 +1,13 @@
 package middleware
 
 import (
-    "github.com/prabhatKr-1/lib-man-sys/backend/utils"
-    "net/http" 
-
-    "github.com/gin-gonic/gin"
+	"net/http"
+	"github.com/gin-gonic/gin"
+	"github.com/prabhatKr-1/lib-man-sys/backend/utils"
 )
-func AuthMiddleware(roles ...string) gin.HandlerFunc {
+
+// Auth Middleware with injectable JWT validator
+func AuthMiddleware(jwtValidator utils.JWTValidatorFunc, roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenString, err := c.Cookie("token")
 		if err != nil || tokenString == "" {
@@ -14,13 +15,17 @@ func AuthMiddleware(roles ...string) gin.HandlerFunc {
 			return
 		}
 
-		id, LibID, email, role, err := utils.ValidateJWT(tokenString)
-		if err != nil || !contains(roles, role) {
+		id, LibID, email, role, err := jwtValidator(tokenString)
+		if err != nil { // 🔹 Return 401 if token validation fails
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			return
+		}
+
+		if !contains(roles, role) { // 🔹 Return 403 if role authorization fails
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
 			return
 		}
-		id = uint(id)
-		LibID = uint(LibID)
+
 		c.Set("id", id)
 		c.Set("libid", LibID)
 		c.Set("email", email)

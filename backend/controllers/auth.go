@@ -47,7 +47,7 @@ func Signup(c *gin.Context) {
 	}
 	config.DB.Create(&user)
 	c.JSON(http.StatusOK, gin.H{"message": "Owner account created successfully"})
-}
+	}
 
 // USER LOGIN
 func Login(c *gin.Context) {

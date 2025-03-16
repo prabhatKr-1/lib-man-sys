@@ -1,14 +1,15 @@
 package controllers
 
 import (
-  "errors"
-  "github.com/prabhatKr-1/lib-man-sys/backend/config"
-  "github.com/prabhatKr-1/lib-man-sys/backend/models"
-  "net/http"
-  "time"
+	"errors"
+	"net/http"
+	"time"
 
-  "github.com/gin-gonic/gin"
-  "gorm.io/gorm"
+	"github.com/prabhatKr-1/lib-man-sys/backend/config"
+	"github.com/prabhatKr-1/lib-man-sys/backend/models"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // RAISING ISSUE/RETURN REQUESTS
@@ -200,7 +201,8 @@ func ProcessRequest(c *gin.Context) {
 
 	if input.Action == "reject" {
 		// REMOVE ENTRY FROM REQUESTS TABLE
-		if err := config.DB.Model(&models.RequestEvents{}).Delete(input.ReqID).Error; err != nil {
+		// if err := config.DB.Model(&models.RequestEvents{}).Delete(input.ReqID).Error; err != nil {
+		if err := config.DB.Where("req_id = ?", input.ReqID).Delete(&models.RequestEvents{}).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": err.Error(),
 			})
