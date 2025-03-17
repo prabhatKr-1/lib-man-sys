@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/prabhatKr-1/lib-man-sys/backend/config"
 
-	// "github.com/prabhatKr-1/lib-man-sys/backend/controllers"
+	
 	"github.com/prabhatKr-1/lib-man-sys/backend/models"
 	"github.com/prabhatKr-1/lib-man-sys/backend/testutils"
 	"github.com/stretchr/testify/assert"
@@ -37,7 +38,7 @@ func TestSignup(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	// Ensure signup response is 200 OK
+	
 	assert.Equal(t, http.StatusOK, w.Code, "Expected HTTP 200 OK response")
 }
  
@@ -46,7 +47,7 @@ func TestLogin(t *testing.T) {
 	router := gin.Default()
 	router.POST("/auth/login", Login)
 
-	// Insert a test user
+	
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 	user := models.User{
 		Name:     "Test User",
@@ -74,7 +75,7 @@ func TestCreateAdminUser(t *testing.T) {
 
 	router := gin.Default()
 
-	// Manually inject an Owner into the DB
+	
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("ownerpassword"), bcrypt.DefaultCost)
 	owner := models.User{
 		Name:     "Owner User",
@@ -85,7 +86,7 @@ func TestCreateAdminUser(t *testing.T) {
 	}
 	config.DB.Create(&owner)
 
-	// Middleware to mock the owner’s login
+	
 	router.Use(func(c *gin.Context) {
 		c.Set("email", "owner@example.com")
 		c.Next()
@@ -109,7 +110,7 @@ func TestCreateAdminUser(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "Admin user created successfully")
 
-	// Verify admin exists in DB
+	
 	var admin models.User
 	err := config.DB.Where("email = ?", "admin@example.com").First(&admin).Error
 	assert.Nil(t, err)
@@ -122,7 +123,7 @@ func TestCreateReaderUser(t *testing.T) {
 
 	router := gin.Default()
 
-	// Insert an Admin User
+	
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("adminpassword"), bcrypt.DefaultCost)
 	admin := models.User{
 		Name:     "Admin User",
@@ -133,7 +134,7 @@ func TestCreateReaderUser(t *testing.T) {
 	}
 	config.DB.Create(&admin)
 
-	// Middleware to mock the admin’s login
+	
 	router.Use(func(c *gin.Context) {
 		c.Set("email", "admin@example.com")
 		c.Next()
@@ -157,7 +158,7 @@ func TestCreateReaderUser(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "Reader user created successfully")
 
-	// Verify reader exists in DB
+	
 	var reader models.User
 	err := config.DB.Where("email = ?", "reader@example.com").First(&reader).Error
 	assert.Nil(t, err)
@@ -166,60 +167,63 @@ func TestCreateReaderUser(t *testing.T) {
  
 func TestUpdatePassword(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	testutils.SetupTestDB()   
+	testutils.SetupTestDB()
 	router := gin.Default()
- 
+
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("oldpassword"), bcrypt.DefaultCost)
 	user := models.User{
 		Name:     "Test User",
 		Email:    "user@example.com",
-		Password: string(hashedPassword),  
+		Password: string(hashedPassword),
 		Role:     "Reader",
 		LibID:    1,
 	}
- 
+
 	if err := config.DB.Create(&user).Error; err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
- 
+
 	router.Use(func(c *gin.Context) {
 		c.Set("email", "user@example.com")
 		c.Next()
 	})
 
 	router.POST("/user/update-password", UpdatePassword)
- 
-	passwordPayload := `{
+
+	passwordPayload := map[string]string{
 		"oldPassword": "oldpassword",
-		"newPassword": "newsecurepassword"
-	}`
-	req, _ := http.NewRequest("POST", "/user/update-password", bytes.NewBuffer([]byte(passwordPayload)))
+		"newPassword": "newsecurepassword",
+	}
+	payloadBytes, _ := json.Marshal(passwordPayload)
+	req, _ := http.NewRequest("POST", "/user/update-password", bytes.NewBuffer(payloadBytes))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
- 
+
 	assert.Equal(t, http.StatusOK, w.Code, "Password update request should succeed")
 	assert.Contains(t, w.Body.String(), "Password updated successfully!")
- 
+
 	var updatedUser models.User
 	config.DB.Where("email = ?", "user@example.com").First(&updatedUser)
- 
+
 	err := bcrypt.CompareHashAndPassword([]byte(updatedUser.Password), []byte("newsecurepassword"))
 	assert.Nil(t, err, "Password should be updated correctly")
- 
-	incorrectPayload := `{
+
+	
+	incorrectPayload := map[string]string{
 		"oldPassword": "wrongpassword",
-		"newPassword": "anothernewpassword"
-	}`
-	req, _ = http.NewRequest("POST", "/user/update-password", bytes.NewBuffer([]byte(incorrectPayload)))
-	req.Header.Set("Content-Type", "application/json")
+		"newPassword": "anothernewpassword",
+	}
+	payloadBytesIncorrect, _ := json.Marshal(incorrectPayload)
+	reqIncorrect, _ := http.NewRequest("POST", "/user/update-password", bytes.NewBuffer(payloadBytesIncorrect))
+	reqIncorrect.Header.Set("Content-Type", "application/json")
 
-	w = httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	wIncorrect := httptest.NewRecorder()
+	router.ServeHTTP(wIncorrect, reqIncorrect)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code, "Should fail with incorrect old password")
-	assert.Contains(t, w.Body.String(), "Wrong Password")
+	assert.Equal(t, http.StatusBadRequest, wIncorrect.Code, "Should fail with incorrect old password")
+	assert.Contains(t, wIncorrect.Body.String(), "Wrong Password")
 }
  
 func TestLogout(t *testing.T) {
@@ -236,3 +240,117 @@ func TestLogout(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "Logged out successfully")
 }
+
+func TestSignup_DuplicateLibrary(t *testing.T) {
+    gin.SetMode(gin.TestMode)
+    testutils.SetupTestDB()
+    router := gin.Default()
+    router.POST("/auth/signup", Signup)
+
+    
+    signupPayload := `{
+        "name": "User1",
+        "email": "user1@example.com",
+        "password": "password123",
+        "contactNumber": "1111111111",
+        "libraryName": "Duplicate Library"
+    }`
+    req, _ := http.NewRequest("POST", "/auth/signup", bytes.NewBuffer([]byte(signupPayload)))
+    req.Header.Set("Content-Type", "application/json")
+    w := httptest.NewRecorder()
+    router.ServeHTTP(w, req)
+    assert.Equal(t, http.StatusOK, w.Code)
+
+    
+    signupPayload2 := `{
+        "name": "User2",
+        "email": "user2@example.com",
+        "password": "password123",
+        "contactNumber": "2222222222",
+        "libraryName": "Duplicate Library"
+    }`
+    req2, _ := http.NewRequest("POST", "/auth/signup", bytes.NewBuffer([]byte(signupPayload2)))
+    req2.Header.Set("Content-Type", "application/json")
+    w2 := httptest.NewRecorder()
+    router.ServeHTTP(w2, req2)
+    assert.Equal(t, http.StatusBadRequest, w2.Code)
+    assert.Contains(t, w2.Body.String(), "Library already exists")
+}
+
+
+func TestLogin_InvalidCredentials(t *testing.T) {
+    gin.SetMode(gin.TestMode)
+    testutils.SetupTestDB()
+    router := gin.Default()
+    router.POST("/auth/login", Login)
+
+    hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.DefaultCost)
+    user := models.User{
+        Email: "validuser@example.com",
+        Password: string(hashedPassword),
+        Role:  "Owner",
+        LibID: 1,
+    }
+    config.DB.Create(&user)
+
+    invalidLoginPayload := `{"email": "validuser@example.com", "password": "wrongpassword"}`
+    req, _ := http.NewRequest("POST", "/auth/login", bytes.NewBuffer([]byte(invalidLoginPayload)))
+    req.Header.Set("Content-Type", "application/json")
+
+    w := httptest.NewRecorder()
+    router.ServeHTTP(w, req)
+
+    assert.Equal(t, http.StatusUnauthorized, w.Code)
+    assert.Contains(t, w.Body.String(), "Invalid credentials")
+}
+
+func TestCreateAdminUser_Unauthorized(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	testutils.SetupTestDB()
+	router := gin.Default()
+
+	router.Use(func(c *gin.Context) {
+		c.Set("email", "nonowner@example.com") 
+		c.Next()
+	})
+	router.POST("/admin/create", CreateAdminUser)
+
+	adminPayload := `{
+		"name": "Admin User",
+		"email": "admin@example.com",
+		"password": "adminpassword",
+		"contactNumber": "9876543210"
+	}`
+
+	req, _ := http.NewRequest("POST", "/admin/create", bytes.NewBuffer([]byte(adminPayload)))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Body.String(), "Unauthorized")
+}
+
+func TestUpdatePassword_MissingFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	testutils.SetupTestDB()
+	router := gin.Default()
+
+	router.Use(func(c *gin.Context) {
+		c.Set("email", "user@example.com")
+		c.Next()
+	})
+	router.POST("/user/update-password", UpdatePassword)
+
+	payloadMissingNewPass := `{"oldPassword":"oldpassword"}`
+	req, _ := http.NewRequest("POST", "/user/update-password", bytes.NewBuffer([]byte(payloadMissingNewPass)))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), `Field validation for 'NewPassword' failed on the 'required' tag`)
+}
+

@@ -3,6 +3,7 @@ package controllers
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/prabhatKr-1/lib-man-sys/backend/config"
@@ -208,13 +209,13 @@ func UpdateBook(c *gin.Context) {
 // DELETING A BOOK
 func DeleteBook(c *gin.Context) {
 	isbnStr := c.Param("isbn")
+	fmt.Println("Received ISBN:", isbnStr)
 
-	var isbn uint
-	_, err := fmt.Sscanf(isbnStr, "%d", &isbn)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ISBN format"})
-		return
-	}
+	isbn, err := strconv.ParseUint(isbnStr, 10, 64)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ISBN format"})
+        return
+    }
 
 	// GET ADMIN ID
 	email, _ := c.Get("email")

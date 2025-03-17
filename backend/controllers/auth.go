@@ -167,8 +167,8 @@ func CreateReaderUser(c *gin.Context) {
 // UPDATE USER PASSWORD
 func UpdatePassword(c *gin.Context) {
 	var input struct {
-		oldPassword string `binding:"required"`
-		newPassword string `binding:"required"`
+		OldPassword string `binding:"required"`
+		NewPassword string `binding:"required"`
 	}
 
 	// INPUT VALIDATION
@@ -188,13 +188,13 @@ func UpdatePassword(c *gin.Context) {
 	}
 
 	// EXISTING PASSWORD VERIFICATION
-	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.oldPassword)) != nil {
+	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.OldPassword)) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Wrong Password"})
 		return
 	}
 
 	// NEW PASSWORD HASHING AND SAVING
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.newPassword), bcrypt.DefaultCost) //; err != nil {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost) //; err != nil {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Bcrypt failed to generate password!",
@@ -206,7 +206,7 @@ func UpdatePassword(c *gin.Context) {
 	config.DB.Save(&user)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Pasword updated successfully!",
+		"message": "Password updated successfully!",
 	})
 
 }

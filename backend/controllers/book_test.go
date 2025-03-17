@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -15,33 +16,33 @@ import (
 
 func TestAddBook(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	testutils.SetupTestDB() // Ensure DB is set up before running test
+	testutils.SetupTestDB() 
 
-	// Ensure DB is not nil before proceeding
+	
 	if config.DB == nil {
 		t.Fatalf("❌ config.DB is nil! Database not initialized.")
 	}
 
 	router := gin.Default()
 
-	// Manually add middleware values required by the controller
+	
 	router.Use(func(c *gin.Context) {
-		c.Set("libid", uint(1)) // Fake library ID
+		c.Set("libid", uint(1)) 
 		c.Next()
 	})
 
 	router.POST("/books/add", AddBook)
 
-	// Insert a test library
+	
 	lib := models.Library{Name: "Test Library"}
 	result := config.DB.Create(&lib)
 
-	// Ensure the library creation was successful
+	
 	if result.Error != nil {
 		t.Fatalf("❌ Failed to insert test library: %v", result.Error)
 	}
 
-	// Create a test book payload
+	
 	bookPayload := `{
 		"title": "Go Programming",
 		"authors": "John Doe",
@@ -57,10 +58,10 @@ func TestAddBook(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	// Verify response status code
+	
 	assert.Equal(t, http.StatusOK, w.Code, "Expected HTTP 200 OK response")
 
-	// Verify the book exists in the database
+	
 	var book models.Books
 	err := config.DB.First(&book, "isbn = ?", 123456).Error
 	assert.Nil(t, err, "❌ Book should exist in the database")
@@ -73,7 +74,7 @@ func TestSearchBook(t *testing.T) {
 
 	router := gin.Default()
 
-	// Insert a test book
+	
 	book := models.Books{
 		ISBN:      123456,
 		Title:     "Go Programming",
@@ -86,9 +87,9 @@ func TestSearchBook(t *testing.T) {
 	}
 	config.DB.Create(&book)
 
-	// Middleware to mock authentication
+	
 	router.Use(func(c *gin.Context) {
-		c.Set("libid", uint(1)) // Fake library ID
+		c.Set("libid", uint(1)) 
 		c.Next()
 	})
 
@@ -114,7 +115,7 @@ func TestUpdateBook(t *testing.T) {
 
 	router := gin.Default()
 
-	// Insert a test book
+	
 	book := models.Books{
 		ISBN:      123456,
 		Title:     "Go Programming",
@@ -127,9 +128,9 @@ func TestUpdateBook(t *testing.T) {
 	}
 	config.DB.Create(&book)
 
-	// Middleware to mock authentication
+	
 	router.Use(func(c *gin.Context) {
-		c.Set("libid", uint(1)) // Fake library ID
+		c.Set("libid", uint(1)) 
 		c.Next()
 	})
 
@@ -162,49 +163,58 @@ func TestUpdateBook(t *testing.T) {
 	assert.Equal(t, uint(10), updatedBook.Total_copies)
 }
  
+
 func TestDeleteBook(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	testutils.SetupTestDB()
 
 	router := gin.Default()
- 
+
+	
 	admin := models.User{
-		Name:     "Admin User",
-		Email:    "admin@example.com",
-		Role:     "Admin",
-		LibID:    1,
+		Name:  "Admin User",
+		Email: "admin@example.com",
+		Role:  "Admin",
+		LibID: 1,
 	}
 	config.DB.Create(&admin)
- 
+
+	
 	book := models.Books{
-		ISBN:      123456,
-		Title:     "Go Programming",
-		Authors:   "John Doe",
-		Publisher: "Tech Press",
-		Version:   "1st",
-		LibID:     1,
-		Total_copies: 5,
+		ISBN:             123456,
+		Title:            "Go Programming",
+		Authors:          "John Doe",
+		Publisher:        "Tech Press",
+		Version:          "1st",
+		LibID:            1,
+		Total_copies:     5,
 		Available_copies: 5,
 	}
 	config.DB.Create(&book)
- 
+
+	
 	router.Use(func(c *gin.Context) {
 		c.Set("email", "admin@example.com")  
 		c.Next()
 	})
 
-	router.DELETE("/books/delete/123456", DeleteBook)
+	
+	isbnStr := strconv.Itoa(123456)
+	router.DELETE("/books/delete/:isbn", DeleteBook)  
 
-	req, _ := http.NewRequest("DELETE", "/books/delete/123456", nil)
+	
+	req, _ := http.NewRequest("DELETE", "/books/delete/"+isbnStr, nil)
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
+	
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "Book deleted successfully")
- 
+
+	
 	var deletedBook models.Books
 	err := config.DB.Where("isbn = ?", 123456).First(&deletedBook).Error
-	assert.NotNil(t, err)   
+	assert.NotNil(t, err)  
 }

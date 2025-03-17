@@ -14,14 +14,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// 🟢 Test RaiseBookRequest (Issue Request)
+type CustomResponseRecorder struct {
+	*httptest.ResponseRecorder
+}
+
+func (c *CustomResponseRecorder) CloseNotify() <-chan bool {
+	return make(chan bool) 
+}
+
+
 func TestRaiseBookRequest_Issue(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	testutils.SetupTestDB()
 
 	router := gin.Default()
 
-	// Insert a test book with available copies
+	
 	book := models.Books{
 		ISBN:            123456,
 		Title:           "Go Programming",
@@ -34,10 +42,10 @@ func TestRaiseBookRequest_Issue(t *testing.T) {
 	}
 	config.DB.Create(&book)
 
-	// Middleware to mock the reader's login
+	
 	router.Use(func(c *gin.Context) {
-		c.Set("id", uint(2))     // Fake reader ID
-		c.Set("libid", uint(1)) // Fake library ID
+		c.Set("id", uint(2))     
+		c.Set("libid", uint(1)) 
 		c.Next()
 	})
 
@@ -58,14 +66,14 @@ func TestRaiseBookRequest_Issue(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "Issue request raised successfully")
 }
 
-// 🟢 Test RaiseBookRequest (Return Request)
+
 func TestRaiseBookRequest_Return(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	testutils.SetupTestDB()
 
 	router := gin.Default()
 
-	// Insert a test book and issued record
+	
 	book := models.Books{
 		ISBN:            123456,
 		Title:           "Go Programming",
@@ -87,10 +95,10 @@ func TestRaiseBookRequest_Return(t *testing.T) {
 	}
 	config.DB.Create(&issueRegistry)
 
-	// Middleware to mock the reader's login
+	
 	router.Use(func(c *gin.Context) {
-		c.Set("id", uint(2)) // Fake reader ID
-		c.Set("libid", uint(1)) // Fake library ID
+		c.Set("id", uint(2)) 
+		c.Set("libid", uint(1)) 
 		c.Next()
 	})
 
@@ -118,7 +126,7 @@ func TestListRequests(t *testing.T) {
 	router := gin.Default()
 	router.GET("/requests/list",  ListRequests)
 
-	// Insert sample requests
+	
 	request1 := models.RequestEvents{BookID: 123456, ReaderID: 2, LibID: 1, RequestType: "issue", RequestDate: time.Now()}
 	request2 := models.RequestEvents{BookID: 123457, ReaderID: 3, LibID: 1, RequestType: "return", RequestDate: time.Now()}
 	config.DB.Create(&request1)
@@ -138,7 +146,7 @@ func TestProcessRequest_ApproveIssue(t *testing.T) {
 
 	router := gin.Default()
 
-	// Insert test book and request
+	
 	book := models.Books{
 		ISBN:            123456,
 		Title:           "Go Programming",
@@ -161,7 +169,7 @@ func TestProcessRequest_ApproveIssue(t *testing.T) {
 	config.DB.Create(&request)
  
 	router.Use(func(c *gin.Context) {
-		c.Set("id", uint(1)) // Fake admin ID
+		c.Set("id", uint(1)) 
 		c.Next()
 	})
 
@@ -189,7 +197,7 @@ func TestProcessRequest_Reject(t *testing.T) {
 
 	router := gin.Default()
 
-	// Insert test request
+	
 	request := models.RequestEvents{
 		BookID:      123456,
 		ReaderID:    2,
@@ -199,9 +207,9 @@ func TestProcessRequest_Reject(t *testing.T) {
 	}
 	config.DB.Create(&request)
 
-	// Middleware to mock admin rejection
+	
 	router.Use(func(c *gin.Context) {
-		c.Set("id", uint(1)) // Fake admin ID
+		c.Set("id", uint(1)) 
 		c.Next()
 	})
 
@@ -221,4 +229,112 @@ func TestProcessRequest_Reject(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "Request processed succesfully! Issue req rejected!")
+}
+func TestHandleReturnRequest_Success(t *testing.T) {
+    gin.SetMode(gin.TestMode)
+    testutils.SetupTestDB()
+
+    
+    book := models.Books{
+        ISBN:             123456,
+        Title:            "Go Programming",
+        Authors:          "John Doe",
+        Publisher:        "Tech Press",
+        Version:          "1st",
+        LibID:            1,
+        Total_copies:     5,
+        Available_copies: 4,
+    }
+    config.DB.Create(&book)
+
+    
+    issueRegistry := models.IssueRegistry{
+        ISBN:      book.ISBN,
+        LibID:     book.LibID,
+        ReaderID:  2,
+        Status:    "issued",
+        IssueDate: time.Now(),
+    }
+    config.DB.Create(&issueRegistry)
+
+    
+    returnRequest := models.RequestEvents{
+        BookID:      book.ISBN,
+        ReaderID:    2,
+        LibID:       book.LibID,
+        RequestType: "return",
+        RequestDate: time.Now(),
+    }
+    config.DB.Create(&returnRequest)
+
+    
+    c, _ := gin.CreateTestContext(httptest.NewRecorder())
+    c.Set("id", uint(1)) 
+    c.Params = []gin.Param{{Key: "reqId", Value: "1"}}
+
+    
+    handleReturnRequest(c, 1, returnRequest.ReqID)
+
+    
+    var updatedIssueRegistry models.IssueRegistry
+    err := config.DB.Where("isbn = ? AND reader_id = ?", book.ISBN, 2).First(&updatedIssueRegistry).Error
+    assert.Nil(t, err)
+    assert.Equal(t, "returned", updatedIssueRegistry.Status)
+
+    var updatedBook models.Books
+    err = config.DB.Where("isbn = ?", book.ISBN).First(&updatedBook).Error
+    assert.Nil(t, err)
+    assert.Equal(t, uint(5), updatedBook.Available_copies) 
+
+    var deletedRequest models.RequestEvents
+    err = config.DB.Where("req_id = ?", returnRequest.ReqID).First(&deletedRequest).Error
+    assert.NotNil(t, err) 
+}
+
+func TestHandleReturnRequest_RequestNotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	testutils.SetupTestDB()
+
+	
+	w := &CustomResponseRecorder{ResponseRecorder: httptest.NewRecorder()}
+	c, _ := gin.CreateTestContext(w)
+
+	
+	c.Set("id", uint(1)) 
+	c.Params = []gin.Param{{Key: "reqId", Value: "999"}} 
+
+	
+	handleReturnRequest(c, 1, 999)
+
+	
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "error")
+}
+
+
+func TestHandleReturnRequest_IssueRegistryNotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	testutils.SetupTestDB()
+
+	
+	returnRequest := models.RequestEvents{
+		BookID:      123456,
+		ReaderID:    2,
+		LibID:       1,
+		RequestType: "return",
+		RequestDate: time.Now(),
+	}
+	config.DB.Create(&returnRequest)
+
+	
+	w := &CustomResponseRecorder{ResponseRecorder: httptest.NewRecorder()}
+	c, _ := gin.CreateTestContext(w)
+	c.Set("id", uint(1)) 
+
+	
+	handleReturnRequest(c, 1, returnRequest.ReqID)
+
+	
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "error")
 }
